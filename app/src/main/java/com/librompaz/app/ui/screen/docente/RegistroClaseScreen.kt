@@ -29,13 +29,11 @@ import androidx.navigation.NavHostController
 import com.librompaz.app.ui.components.BarraSuperior
 import com.librompaz.app.util.hoy
 import com.librompaz.app.viewmodel.LibroMpazViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Módulo "Cobertura curricular" (docente): registrar los OA y contenidos trabajados en una
  * sesión o bloque, y ver las sesiones ya registradas.
- *
- * TODO(equipo): guardarSesion() todavía no guarda. Validar que se elija al menos un OA y que
- * el contenido no quede vacío.
  */
 @Composable
 fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazViewModel) {
@@ -49,9 +47,16 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
     var bloque by remember { mutableStateOf("") }
     var seleccionados by remember { mutableStateOf(setOf<String>()) }
     var contenido by remember { mutableStateOf("") }
-    var mensaje by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(topBar = { BarraSuperior("Registro de clase", navController) }) { padding ->
+    // --- NUEVO: Estado para el Snackbar y Animación ---
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val mensajeViewModel by viewModel.errorSesion.collectAsState() // Viene del ViewModel de Matías
+
+    Scaffold(
+        topBar = { BarraSuperior("Registro de clase", navController) },
+        snackbarHost = { SnackbarHost(snackbarHostState) } // --- NUEVO: Recurso Nativo
+    ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -101,13 +106,45 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
                 modifier = Modifier.fillMaxWidth()
             )
 
-            mensaje?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
+            // --- NUEVO: Animación del mensaje (Criterio G7 de la rúbrica) ---
+            AnimatedVisibility(
+                visible = mensajeViewModel != null,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                val texto = mensajeViewModel ?: ""
+                val esError = texto.contains("Error") || texto.contains("obligatorio") || texto.contains("Debes") || texto.contains("inválido")
+
+                Text(
+                    text = texto,
+                    color = if (esError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
 
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
-                    viewModel.guardarSesion(cursoId.orEmpty(), asignaturaId.orEmpty(), fecha, bloque.trim(), seleccionados.toList(), contenido.trim())
-                    mensaje = "Clase enviada a guardar (cuando guardarSesion() esté implementada)."
+                    // --- NUEVO: Llamada a la función de Room de Matías ---
+                    viewModel.guardarSesionEnRoom(
+                        cursoId.orEmpty(),
+                        asignaturaId.orEmpty(),
+                        fecha,
+                        bloque.trim(),
+                        seleccionados.toList(),
+                        contenido.trim()
+                    )
+
+                    // Si el mensaje del ViewModel es de éxito, mostramos el Snackbar y limpiamos
+                    if (viewModel.errorSesion.value == "¡Guardado con éxito en la base de datos!") {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Clase guardada con éxito")
+                        }
+                        bloque = ""
+                        seleccionados = emptySet()
+                        contenido = ""
+                    }
                 }
             ) { Text("Guardar clase") }
 

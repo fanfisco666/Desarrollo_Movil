@@ -124,7 +124,7 @@ fun HojaDeVidaScreen(navController: NavHostController, viewModel: LibroMpazViewM
                     }
                     confirmando = false
                     descripcion = ""
-                    mensaje = "Anotación enviada a registrar (cuando registrarAnotacion() esté implementada)."
+                    mensaje = "Anotación enviada a registrar (simulación)."
                 }) { Text("Registrar") }
             },
             dismissButton = {

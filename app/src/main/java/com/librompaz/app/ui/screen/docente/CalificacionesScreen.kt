@@ -143,7 +143,7 @@ fun CalificacionesScreen(navController: NavHostController, viewModel: LibroMpazV
                 TextButton(onClick = {
                     evaluacion?.let { viewModel.guardarCalificaciones(it.id, notas) }
                     confirmando = false
-                    mensaje = "Notas enviadas a guardar (cuando guardarCalificaciones() esté implementada)."
+                    mensaje = "Notas enviadas a guardar (simulación)."
                 }) { Text("Guardar") }
             },
             dismissButton = {

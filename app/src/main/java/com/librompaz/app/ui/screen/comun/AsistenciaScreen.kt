@@ -124,7 +124,7 @@ fun AsistenciaScreen(navController: NavHostController, viewModel: LibroMpazViewM
                     val completo = estudiantes.associate { it.id to (estados[it.id] ?: EstadoAsistencia.PRESENTE) }
                     viewModel.guardarAsistencia(cursoId.orEmpty(), fecha, completo)
                     confirmando = false
-                    mensaje = "Asistencia enviada a guardar (cuando guardarAsistencia() esté implementada)."
+                    mensaje = "Asistencia enviada a guardar (simulación)."
                 }) { Text("Guardar") }
             },
             dismissButton = {
