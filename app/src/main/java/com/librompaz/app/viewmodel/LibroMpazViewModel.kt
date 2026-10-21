@@ -20,13 +20,11 @@ import com.librompaz.app.model.Usuario
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * ViewModel único, compartido por todas las pantallas (se crea una sola vez en AppNavigation).
- *
- * ESTO ES UN ESQUELETO: las pantallas ya llaman a todas estas funciones, pero la lógica de
- * negocio del caso está vacía a propósito y marcada con TODO(equipo), citando el módulo de
- * Requerimientos_DSY1105-005 al que corresponde. Mientras no se implemente:
  *  - el login siempre rechaza (usar "Modo desarrollo" en la pantalla de login),
  *  - el docente ve todas las cargas (no solo las suyas),
  *  - guardar asistencia, clases, notas y anotaciones no hace nada,
@@ -34,8 +32,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *  - no se registra auditoría.
  *
  * Regla de negocio transversal: TODA creación o modificación debe dejar un RegistroAuditoria
- * (usuario, fecha y hora) automático e inalterable. Implementarla en cada función que guarde.
- */
+ * (usuario, fecha y hora) automático e inalterable. Implementarla en cada función que guarde.*/
+
 class LibroMpazViewModel : ViewModel() {
 
     // =====================================================================
@@ -154,11 +152,75 @@ class LibroMpazViewModel : ViewModel() {
         _sesiones.value.filter { it.cursoId == cursoId && it.asignaturaId == asignaturaId }
 
     /**
-     * TODO(equipo): guardar la sesión con los OA y el contenido trabajados, con auditoría.
-     * RF: "asociar OA y contenidos didácticos a cada sesión/bloque lectivo". Hoy no hace nada.
+     * RF-06: guarda una sesión con sus OA y contenidos.
+     * Devuelve null si se guardó, o el mensaje de error para mostrar en pantalla.
+     * Validaciones: sesión activa (RF-02), perfil Docente y carga propia (RN-03), fecha válida y
+     * no futura, bloque y contenido obligatorios, al menos un OA, OA de la asignatura y sin
+     * duplicar curso + asignatura + fecha + bloque. Al guardar deja auditoría (RN-02).
      */
-    fun guardarSesion(cursoId: String, asignaturaId: String, fecha: String, bloque: String, oaIds: List<String>, contenido: String) {
-        // Sin implementar todavía.
+    fun guardarSesion(cursoId: String, asignaturaId: String, fecha: String, bloque: String, oaIds: List<String>, contenido: String): String? {
+        val usuario = _usuarioActivo.value ?: return "Debes iniciar sesión."
+        if (usuario.perfil != Perfil.DOCENTE) return "Tu perfil no puede registrar clases."
+        if (!tieneCarga(usuario, cursoId, asignaturaId)) return "No tienes asignado este curso o asignatura."
+
+        validarFecha(fecha)?.let { return it }
+        if (bloque.isBlank()) return "El bloque es obligatorio."
+        if (oaIds.isEmpty()) return "Marca al menos un OA."
+        if (contenido.isBlank()) return "Escribe los contenidos abordados."
+
+        val oasValidos = objetivosDe(asignaturaId).map { it.id }.toSet()
+        if (!oasValidos.containsAll(oaIds)) return "Hay OA que no pertenecen a esta asignatura."
+
+        val repetida = _sesiones.value.any {
+            it.cursoId == cursoId && it.asignaturaId == asignaturaId &&
+                it.fecha == fecha && it.bloque.equals(bloque, ignoreCase = true)
+        }
+        if (repetida) return "Ya existe una clase registrada para esa fecha y bloque."
+
+        val nueva = SesionClase(
+            id = "S${System.currentTimeMillis()}",
+            cursoId = cursoId,
+            asignaturaId = asignaturaId,
+            fecha = fecha,
+            bloque = bloque,
+            oaIds = oaIds.distinct(),
+            contenido = contenido,
+            registradoPor = usuario.nombre,
+            fechaHoraRegistro = ahora()
+        )
+        _sesiones.value = _sesiones.value + nueva
+        registrarAuditoria(
+            "CREAR",
+            "Sesión de clase ${cursoPorId(cursoId)?.nombre}, ${asignaturaPorId(asignaturaId)?.nombre}, $fecha $bloque"
+        )
+        return null
+    }
+
+    // ---------- Apoyo (RN-02, RN-03): compartido por todas las funciones que guardan ----------
+
+    private fun ahora(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+
+    /** RN-03: el docente solo opera sobre sus cargas. */
+    private fun tieneCarga(usuario: Usuario, cursoId: String, asignaturaId: String? = null): Boolean =
+        MockData.cargas.any {
+            it.docenteId == usuario.id && it.cursoId == cursoId &&
+                (asignaturaId == null || it.asignaturaId == asignaturaId)
+        }
+
+    /** Fecha AAAA-MM-DD válida y no futura. Devuelve el error o null. (Sin java.time: minSdk 24.) */
+    private fun validarFecha(fecha: String): String? {
+        if (!Regex("""\d{4}-\d{2}-\d{2}""").matches(fecha)) return "La fecha debe tener formato AAAA-MM-DD."
+        val formato = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply { isLenient = false }
+        if (runCatching { formato.parse(fecha) }.getOrNull() == null) return "La fecha no es válida."
+        if (fecha > formato.format(Date())) return "No se permiten fechas futuras."
+        return null
+    }
+
+    /** RN-02: usuario, perfil, fecha y hora salen del sistema, nunca del usuario. */
+    private fun registrarAuditoria(accion: String, detalle: String) {
+        val usuario = _usuarioActivo.value ?: return
+        val registro = RegistroAuditoria("AU${System.currentTimeMillis()}", usuario.nombre, usuario.perfil, accion, detalle, ahora())
+        _auditoria.value = listOf(registro) + _auditoria.value
     }
 
     /**
