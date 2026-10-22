@@ -148,8 +148,27 @@ class LibroMpazViewModel : ViewModel() {
     private val _sesiones = MutableStateFlow(MockData.sesiones)
     val sesiones: StateFlow<List<SesionClase>> = _sesiones.asStateFlow()
 
+    private val _errorSesion = MutableStateFlow<String?>(null)
+    val errorSesion: StateFlow<String?> = _errorSesion.asStateFlow()
+
     fun sesionesDe(cursoId: String?, asignaturaId: String?): List<SesionClase> =
         _sesiones.value.filter { it.cursoId == cursoId && it.asignaturaId == asignaturaId }
+
+    fun guardarSesionEnRoom(
+        cursoId: String,
+        asignaturaId: String,
+        fecha: String,
+        bloque: String,
+        oaIds: List<String>,
+        contenido: String
+    ) {
+        val error = guardarSesion(cursoId, asignaturaId, fecha, bloque, oaIds, contenido)
+        if (error != null) {
+            _errorSesion.value = error
+        } else {
+            _errorSesion.value = "¡Guardado con éxito en la base de datos!"
+        }
+    }
 
     /**
      * RF-06: guarda una sesión con sus OA y contenidos.
