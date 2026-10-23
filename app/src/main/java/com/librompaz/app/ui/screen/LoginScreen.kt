@@ -20,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,11 +42,9 @@ import com.librompaz.app.viewmodel.LibroMpazViewModel
  * Inspectoría o Dirección), AppNavigation lleva a la pantalla principal de cada uno.
  * Regla del caso: no existe acceso para estudiantes ni apoderados.
  *
- * La pantalla está completa, pero viewModel.login() es TODO(equipo): por ahora siempre
- * rechaza. Mientras tanto, los botones "Modo desarrollo" permiten entrar con cada perfil.
- * TODO(equipo): eliminarlos antes de la entrega final.
+ * El acceso se valida con viewModel.login() contra los usuarios de prueba (MockData.usuarios).
  *
- * Usuarios de prueba (MockData.usuarios): docente.mat@libromp.cl / docente123,
+ * Usuarios de prueba: docente.mat@libromp.cl / docente123, docente.len@libromp.cl / docente123,
  * utp@libromp.cl / utp123, inspectoria@libromp.cl / inspectoria123,
  * direccion@libromp.cl / direccion123.
  */
@@ -122,19 +119,6 @@ fun LoginScreen(
                     }
                 }
             ) { Text("Ingresar") }
-
-            // ---- SOLO PARA DESARROLLO ---- TODO(equipo): eliminar antes de entregar.
-            Text(
-                "Modo desarrollo (entrar sin login):",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Perfil.entries.forEach { perfil ->
-                TextButton(onClick = {
-                    viewModel.entrarModoDesarrollo(perfil)
-                    onIngresar(perfil)
-                }) { Text("Entrar como ${perfil.etiqueta}") }
-            }
         }
     }
 }

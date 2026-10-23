@@ -29,16 +29,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/**
- *  - el login siempre rechaza (usar "Modo desarrollo" en la pantalla de login),
- *  - el docente ve todas las cargas (no solo las suyas),
- *  - guardar asistencia, clases, notas y anotaciones no hace nada,
- *  - las vistas de UTP, Inspectoría y Dirección no calculan métricas,
- *  - no se registra auditoría.
- *
- * Regla de negocio transversal: TODA creación o modificación debe dejar un RegistroAuditoria
- * (usuario, fecha y hora) automático e inalterable. Implementarla en cada función que guarde.*/
-
 /** Resultado de guardar una sesión. `id` único: cada intento se notifica aunque el texto se repita. */
 data class ResultadoSesion(val mensaje: String, val exito: Boolean, val id: Long = System.nanoTime())
 
@@ -63,22 +53,27 @@ class LibroMpazViewModel(application: Application) : AndroidViewModel(applicatio
     val errorLogin: StateFlow<String?> = _errorLogin.asStateFlow()
 
     /**
-     * TODO(equipo): autenticar contra MockData.usuarios (o el backend que confirme el CITT).
-     * Validar campos vacíos (patrón Guía 11). Si es correcto: dejar _usuarioActivo y devolver
-     * true (AppNavigation ya lleva a cada perfil a su pantalla). Si no: _errorLogin y false.
+     * RF-01: autentica contra MockData.usuarios (datos ficticios).
+     * - Correo o clave vacíos: mensaje de campo obligatorio.
+     * - Credenciales incorrectas: "Correo o clave incorrectos" (no revela qué perfiles existen, RN-01).
+     * Si son correctas deja el usuario en _usuarioActivo y devuelve true; AppNavigation lo lleva a su pantalla.
      */
     fun login(usuario: String, clave: String): Boolean {
-        _errorLogin.value = "Login sin implementar — ver TODO(equipo) en LibroMpazViewModel.login()."
-        return false
-    }
-
-    /**
-     * SOLO PARA DESARROLLO: entra con el primer usuario de prueba del perfil indicado, sin
-     * validar credenciales. TODO(equipo): eliminar esta función y los botones "Modo desarrollo".
-     */
-    fun entrarModoDesarrollo(perfil: Perfil) {
-        _usuarioActivo.value = MockData.usuarios.first { it.perfil == perfil }
+        val correo = usuario.trim()
+        if (correo.isBlank() || clave.isBlank()) {
+            _errorLogin.value = "Ingresa tu correo y tu clave."
+            return false
+        }
+        val encontrado = MockData.usuarios.find {
+            it.usuario.equals(correo, ignoreCase = true) && it.clave == clave
+        }
+        if (encontrado == null) {
+            _errorLogin.value = "Correo o clave incorrectos"
+            return false
+        }
+        _usuarioActivo.value = encontrado
         _errorLogin.value = null
+        return true
     }
 
     fun logout() {
