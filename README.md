@@ -1,139 +1,62 @@
-# Libro MPAZ — Proyecto base (Sección DSY1105-005, Maipú)
+# Libro MPAZ — Proyecto Grupo 07 (Sección DSY1105-005, Maipú)
 
-Proyecto Android base para el caso de Vinculación con el Medio **"Libro Digital de Clases Interactivo 'Libro MPAZ' - Mpazbook"** de la Escuela Escritora Marcela Paz. Es el punto de partida común de todos los equipos de la sección: trae la estructura, las pantallas de cada módulo y perfil, la navegación y la persistencia y la API configuradas. **La lógica de negocio del caso no está implementada**: esa es la parte que construye cada equipo.
+Proyecto Android desarrollado para el caso de Vinculación con el Medio **"Libro Digital de Clases Interactivo 'Libro MPAZ' - Mpazbook"** de la Escuela Escritora Marcela Paz.
 
-Documentación del caso (carpeta `docs/`):
+## Integrantes del Equipo
+*   Katerine Olmedo Mella
+*   Matias Nicolas Perez Cañete
+*   Cesar Agustin Salvo Urra
 
-- `Requerimientos_DSY1105-005.pdf`: requerimientos funcionales, reglas de negocio, RNF y supuestos.
-- `Consultas_Pendientes_DSY1105-005.pdf`: preguntas abiertas al CITT (Christian Lazcano). No resolver con supuestos propios.
+## Enlace al Repositorio
+*   **GitHub:** https://github.com/fanfisco666/Desarrollo_Movil
 
-## Cómo abrir y ejecutar
+---
 
-1. Descomprimir el ZIP en una carpeta limpia.
-2. Android Studio → **File > Open…** → seleccionar la carpeta que contiene `settings.gradle.kts`.
-3. Esperar el Gradle Sync (la primera vez necesita internet).
-4. Ejecutar ▶ **Run 'app'**.
-5. En el login, usar **"Modo desarrollo"** para entrar con cualquiera de los cuatro perfiles (el login real es tarea del equipo).
+## Requerimiento Implementado (RF-06)
+El foco principal de nuestro equipo fue el **RF-06: Asociar OA y contenidos a cada sesión/bloque lectivo**.
 
-Si Android Studio sugiere actualizar Gradle o el Android Gradle Plugin, **no aceptar**: las versiones están fijadas para que todos los equipos usen exactamente las mismas.
+Para que este requerimiento funcione a nivel de producción y cumpla con la rúbrica, implementamos:
+1.  **Arquitectura MVVM:** El flujo viaja desde la pantalla (`RegistroClaseScreen`) → `LibroMpazViewModel` → `SesionRepository` → `SesionDao` → **Room**.
+2.  **Persistencia Local (Room):** Las clases guardadas sobreviven al cierre de la aplicación.
+3.  **Reglas de Negocio Aplicadas:**
+    *   **RN-02 (Auditoría):** Cada vez que se guarda una clase, se inserta un registro en la tabla `auditoria` en la misma transacción, indicando quién lo hizo y cuándo.
+    *   **RN-03 (Cargas docentes):** El sistema valida que el docente solo pueda guardar clases en las asignaturas/cursos que tiene asignados.
+4.  **Validaciones:** El formulario valida que la fecha no sea futura, que el bloque no esté vacío, que se marque al menos un OA y que el contenido esté escrito.
 
-Usuarios de prueba (en `data/MockData.kt`, para cuando implementen el login):
+## Recurso Nativo Utilizado
+*   **DatePickerDialog (Calendario de Android):** En la pantalla de `RegistroClaseScreen`, el docente puede seleccionar la fecha tocando un ícono de calendario. Esto abre el componente nativo de Android, lo que evita errores de formato, agiliza el registro y no requiere ningún permiso especial (cumpliendo con las restricciones del caso que prohíben cámara, GPS, etc.).
+
+---
+
+## Cómo ejecutar
+1. Abrir el proyecto en Android Studio.
+2. Sincronizar Gradle (la primera vez necesita internet).
+3. Ejecutar ▶ **Run 'app'**.
+4. *Nota: Las demás pantallas (Asistencia, Calificaciones, Hoja de Vida) se encuentran en modo de simulación visual para no salir del alcance de nuestro requerimiento asignado, tal como indicó el docente.*
+
+## Usuarios de prueba
+Pueden usar el login real implementado o los botones de "Modo desarrollo":
 
 | Perfil | Usuario | Clave |
-|---|---|---|
+| :--- | :--- | :--- |
 | Docente (Matemática 3°A y 4°A) | docente.mat@libromp.cl | docente123 |
 | Docente (Lenguaje 4°A) | docente.len@libromp.cl | docente123 |
 | UTP | utp@libromp.cl | utp123 |
 | Inspectoría | inspectoria@libromp.cl | inspectoria123 |
 | Dirección | direccion@libromp.cl | direccion123 |
 
-## Stack (exigido por el caso)
+## ¿Cómo probar nuestro requerimiento (RF-06)?
+1. Ingresar con el perfil de **Docente**.
+2. Entrar al curso **3° Básico A - Matemática**.
+3. Tocar en **"Registro de clase (OA y contenidos)"**.
+4. Probar las validaciones (dejar el bloque vacío y guardar, no marcar OA, etc.).
+5. Usar el **calendario nativo** para seleccionar la fecha.
+6. Llenar los datos correctamente y guardar. Verán un mensaje de éxito (Snackbar).
+7. Cerrar la aplicación por completo, volver a abrirla y entrar al mismo curso. La clase guardada seguirá ahí.
+8. Ingresar como **Dirección** → **Auditoría** para ver el registro de la clase guardada.
 
-Kotlin 2.0 · Jetpack Compose · Material 3 · MVVM (ViewModel + StateFlow) · Navigation Compose · **Room obligatorio** (con KSP) y DataStore · Retrofit + Gson. Todas las dependencias están configuradas en Gradle.
-
-El caso tiene además estas restricciones:
-
-- **Recursos del teléfono:** no permite usar GPS, cámara, grabadora de voz ni biometría.
-- **Acceso:** no existe ningún acceso para estudiantes ni apoderados.
-- **Envíos:** la app no envía notificaciones, correos, SMS ni WhatsApp.
-
-## Flujo de pantallas
-
-```
-LOGIN ──(según perfil)──┬─> DOCENTE: Mis cursos ──> Curso ──┬─> Asistencia del día
-                        │                                   ├─> Registro de clase (OA y contenidos)
-                        │                                   ├─> Calificaciones
-                        │                                   └─> Hoja de vida
-                        ├─> UTP: Panel ──> Cobertura curricular | Revisión de calificaciones
-                        ├─> INSPECTORÍA: Panel ──> Asistencia (cualquier curso) | Alertas
-                        └─> DIRECCIÓN: Panel ──> Auditoría
-Cerrar sesión (cualquier perfil) ──> LOGIN
-```
-
-El botón atrás nativo de Android funciona solo (lo maneja el NavHost). La flecha "←" de la barra superior hace lo mismo. Al ingresar, el login sale de la pila; "Cerrar sesión" la limpia completa.
-
-## Estructura del código (`app/src/main/java/com/librompaz/app/`)
-
-| Carpeta | Contenido |
-|---|---|
-| `model/` | `Curso`, `Asignatura`, `Estudiante`, `CargaDocente`, `RegistroAsistencia`, `ObjetivoAprendizaje`, `SesionClase`, `Evaluacion`, `Calificacion`, `Anotacion`, `RegistroAuditoria`, `ResumenCurso`, `Usuario`, `Perfil` y sus enums. Corresponden a las entidades del caso. |
-| `data/` | `MockData.kt`: datos 100 % ficticios. |
-| `data/local/` | `PersistenciaPendiente.kt`: guía de qué entidades, DAOs y base de datos crear con Room. |
-| `data/remote/` | `ApiPendiente.kt`: guía para el consumo de la API REST con Retrofit. |
-| `viewmodel/` | `LibroMpazViewModel`: un solo ViewModel compartido. Todas las funciones pendientes están marcadas con `TODO(equipo)`. |
-| `navigation/` | `AppNavigation`: rutas, NavHost, ingreso por perfil y cierre de sesión. |
-| `ui/components/` | `BarraSuperior` (flecha atrás y cerrar sesión) y `SelectorDesplegable` (lista desplegable reutilizable). |
-| `ui/screen/` | `LoginScreen` y una carpeta por perfil: `docente/`, `utp/`, `inspectoria/`, `direccion/`, más `comun/` con la asistencia, compartida por Docente e Inspectoría. |
-| `util/` | `Fechas.kt`: fecha de hoy para los formularios. |
-| `ui/theme/` y `res/` | Tema, colores, logo e ícono **provisionales**. |
-
-## Trazabilidad: requerimiento → pantalla → función a implementar
-
-| Módulo | Requerimiento | Pantalla (ya construida) | Función en el ViewModel (TODO del equipo) |
-|---|---|---|---|
-| Autenticación y roles | Autenticar al usuario | `LoginScreen` | `login()` |
-| Autenticación y roles | El docente solo ve sus cursos y asignaturas (RBAC) | `MisCursosScreen` | `misCargas()` |
-| Autenticación y roles | Capacidades distintas por rol | `AppNavigation` (cada perfil tiene su propio flujo) | `login()` |
-| Asistencia | Registrar la asistencia diaria (P / A / T / J) | `AsistenciaScreen` | `asistenciaGuardada()`, `guardarAsistencia()` |
-| Asistencia | Registro en menos de un minuto | `AsistenciaScreen` (todos parten "presente") | — |
-| Asistencia | Inspectoría consulta y gestiona la asistencia general | `PanelInspectoriaScreen`, `AsistenciaScreen` | `porcentajeAsistencia()`, `inasistenciasReiteradas()` |
-| Cobertura curricular | Asociar OA y contenidos a cada sesión | `RegistroClaseScreen` | `guardarSesion()` |
-| Cobertura curricular | UTP ve la cobertura por curso | `CoberturaCurricularScreen` | `oasTrabajados()` |
-| Calificaciones | Registrar notas con instrumento y fecha | `CalificacionesScreen` | `crearEvaluacion()`, `validarNota()`, `guardarCalificaciones()` |
-| Calificaciones | UTP detecta desfases u omisiones | `RevisionCalificacionesScreen` | `desfasesCalificaciones()` |
-| Hoja de vida | Anotaciones con marca temporal y firma del responsable | `HojaDeVidaScreen` | `registrarAnotacion()` |
-| Hoja de vida | Inspectoría identifica riesgo e intervenciones | `AlertasInspectoriaScreen` | `anotacionesQueRequierenIntervencion()`, `inasistenciasReiteradas()` |
-| Panel administrativo | Dirección ve el estado global por curso | `PanelDireccionScreen` | `resumenPorCurso()` |
-| Auditoría | Registro automático de usuario, fecha y hora de cada cambio | `AuditoriaScreen` | En cada función que guarda |
-| Persistencia | Room (obligatorio) | — | ver `data/local/PersistenciaPendiente.kt` |
-
-**Reglas de negocio que el equipo debe hacer cumplir:**
-
-- Ningún estudiante ni apoderado tiene acceso de ningún tipo a la aplicación.
-- Toda creación o modificación queda auditada (usuario, fecha y hora) de forma automática e inalterable.
-- Se pide confirmación antes de cualquier acción que sobrescriba o borre un registro. Las pantallas de asistencia, notas y hoja de vida ya muestran el diálogo.
-
-Para ver todo lo pendiente: **Edit > Find > Find in Files** (Ctrl+Shift+F / Cmd+Shift+F) y buscar `TODO(equipo)`.
-
-## Qué pasa hoy al ejecutar la app (es intencional)
-
-- **Ingresar:** el login siempre rechaza. Hay que entrar con "Modo desarrollo".
-- **Mis cursos:** el docente ve también los cursos de otros docentes.
-- **Guardar:** asistencia, clases, evaluaciones, notas y anotaciones muestran la confirmación, pero no guardan nada.
-- **Vistas de UTP, Inspectoría y Dirección:** las métricas aparecen como "—", la cobertura aparece toda pendiente y las alertas aparecen vacías.
-- **Auditoría:** solo muestra los registros de ejemplo.
-
-## Orden sugerido de trabajo
-
-1. **Login y RBAC:** validar campos vacíos y credenciales, y que cada docente vea solo sus cargas.
-2. **Asistencia:** guardar y cargar la asistencia del día, con auditoría.
-3. **Registro de clase:** guardar los OA y contenidos de cada sesión.
-4. **Calificaciones:** crear evaluaciones y validar y guardar notas.
-5. **Hoja de vida:** registrar anotaciones con firma.
-6. **Vistas de supervisión:**
-   - UTP: cobertura y desfases.
-   - Inspectoría: porcentaje de asistencia y alertas.
-   - Dirección: métricas por curso.
-7. **Persistencia:** reemplazar `MockData` por Room (obligatorio), con auditoría en la misma transacción.
-8. **Cierre:**
-   - Quitar el "Modo desarrollo".
-   - Revisar que no quede ningún `TODO(equipo)`.
-   - Reemplazar el logo y los colores provisionales.
-
-## Reglas del proyecto
-
-- **Datos:** solo ficticios y sintéticos, sin nombres, RUT, antecedentes reales ni diagnósticos PIE (Ley 19.628 y Ley 21.719).
-- **Repositorio:**
-  - Repositorio **PRIVADO** en GitHub y tablero Trello.
-  - Un integrante sube esta base como commit inicial.
-  - Después, una rama por funcionalidad (por ejemplo `feature/asistencia`).
-  - Debe haber commits de **ambos** integrantes.
-- **Entrega:** APK firmado en modo release.
-- **Consultas sobre el caso:** van por el canal Estudiante → Docente → CITT → organización.
-
-## Logo e ícono
-
-Son **provisionales** (un libro de clases con un check). Para usar el logo oficial:
-
-- **Logo:** copiar el PNG a `res/drawable/logo_app.png` y borrar `logo_app.xml`.
-- **Ícono de la app:** clic derecho en `res` > **New > Image Asset**.
+## Restricciones respetadas
+*   No hay acceso para estudiantes ni apoderados.
+*   Datos 100% ficticios (Ley 19.628 y 21.719).
+*   No se utilizan sensores (GPS, cámara, micrófono).
+*   No se envían notificaciones ni mensajes.

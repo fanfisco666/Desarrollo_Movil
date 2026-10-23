@@ -11,17 +11,27 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,11 +46,11 @@ import com.librompaz.app.ui.components.BarraSuperior
 import com.librompaz.app.util.hoy
 import com.librompaz.app.viewmodel.LibroMpazViewModel
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/**
- * Módulo "Cobertura curricular" (docente): registrar los OA y contenidos trabajados en una
- * sesión o bloque, y ver las sesiones ya registradas.
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazViewModel) {
     val cursoId by viewModel.cursoSeleccionadoId.collectAsState()
@@ -54,14 +64,58 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
     var seleccionados by remember { mutableStateOf(setOf<String>()) }
     var contenido by remember { mutableStateOf("") }
 
-    // --- NUEVO: Estado para el Snackbar y Animación ---
+    // Snackbar y Animación
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val mensajeViewModel by viewModel.errorSesion.collectAsState() // Viene del ViewModel de Matías
+
+    // Usamos la variable que creó César
+    val resultado by viewModel.resultadoSesion.collectAsState()
+
+    // Estado para el Calendario Nativo (Recurso Nativo G6/D5)
+    var mostrarCalendario by remember { mutableStateOf(false) }
+
+    // Reaccionar al resultado del guardado (Éxito o Error)
+    LaunchedEffect(resultado) {
+        if (resultado != null) {
+            if (resultado?.exito == true) {
+                scope.launch {
+                    snackbarHostState.showSnackbar(resultado?.mensaje ?: "Guardado exitoso")
+                }
+                // Limpiamos el formulario
+                bloque = ""
+                seleccionados = emptySet()
+                contenido = ""
+            }
+            // Después de mostrar el mensaje, limpiamos el estado para que no se repita
+            viewModel.limpiarResultadoSesion()
+        }
+    }
+
+    // Diálogo del Calendario Nativo
+    if (mostrarCalendario) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { mostrarCalendario = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        fecha = formatter.format(Date(millis))
+                    }
+                    mostrarCalendario = false
+                }) { Text("Aceptar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarCalendario = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Scaffold(
         topBar = { BarraSuperior("Registro de clase", navController) },
-        snackbarHost = { SnackbarHost(snackbarHostState) } // --- NUEVO: Recurso Nativo
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -71,12 +125,18 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                // CAMPO DE FECHA CON RECURSO NATIVO
                 OutlinedTextField(
                     value = fecha,
                     onValueChange = { fecha = it },
                     label = { Text("Fecha") },
                     singleLine = true,
+                    trailingIcon = {
+                        IconButton(onClick = { mostrarCalendario = true }) {
+                            Icon(Icons.Filled.DateRange, contentDescription = "Abrir calendario")
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
@@ -112,18 +172,15 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // --- NUEVO: Animación del mensaje (Criterio G7 de la rúbrica) ---
+            // Animación de Errores (Criterio G7)
             AnimatedVisibility(
-                visible = mensajeViewModel != null,
+                visible = resultado != null && resultado?.exito == false,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                val texto = mensajeViewModel ?: ""
-                val esError = texto.contains("Error") || texto.contains("obligatorio") || texto.contains("Debes") || texto.contains("inválido")
-
                 Text(
-                    text = texto,
-                    color = if (esError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    text = resultado?.mensaje ?: "",
+                    color = MaterialTheme.colorScheme.error, // Rojo para errores
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
@@ -132,7 +189,6 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
-                    // --- NUEVO: Llamada a la función de Room de Matías ---
                     viewModel.guardarSesionEnRoom(
                         cursoId.orEmpty(),
                         asignaturaId.orEmpty(),
@@ -141,16 +197,6 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
                         seleccionados.toList(),
                         contenido.trim()
                     )
-
-                    // Si el mensaje del ViewModel es de éxito, mostramos el Snackbar y limpiamos
-                    if (viewModel.errorSesion.value == "¡Guardado con éxito en la base de datos!") {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Clase guardada con éxito")
-                        }
-                        bloque = ""
-                        seleccionados = emptySet()
-                        contenido = ""
-                    }
                 }
             ) { Text("Guardar clase") }
 
