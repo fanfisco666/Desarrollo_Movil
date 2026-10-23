@@ -23,8 +23,10 @@ Para que este requerimiento funcione a nivel de producción y cumpla con la rúb
     *   **RN-03 (Cargas docentes):** El sistema valida que el docente solo pueda guardar clases en las asignaturas/cursos que tiene asignados.
 4.  **Validaciones:** El formulario valida que la fecha no sea futura, que el bloque no esté vacío, que se marque al menos un OA y que el contenido esté escrito.
 
-## Recurso Nativo Utilizado
-*   **DatePickerDialog (Calendario de Android):** En la pantalla de `RegistroClaseScreen`, el docente puede seleccionar la fecha tocando un ícono de calendario. Esto abre el componente nativo de Android, lo que evita errores de formato, agiliza el registro y no requiere ningún permiso especial (cumpliendo con las restricciones del caso que prohíben cámara, GPS, etc.).
+## Recursos Nativos Utilizados (2)
+1. **DatePickerDialog (Calendario de Android):** Utilizado en el Registro de Clases para seleccionar la fecha sin errores de tipeo.
+2. **Vibración (Vibrator):** Se utiliza para dar feedback háptico al usuario. El teléfono vibra de forma corta cuando la clase se guarda con éxito,
+y vibra dos veces (patrón de error) si hay algún problema de validación, mejorando la accesibilidad y experiencia de usuario.
 
 ---
 
