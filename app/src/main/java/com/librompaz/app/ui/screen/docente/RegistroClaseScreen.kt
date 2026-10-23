@@ -1,5 +1,10 @@
 package com.librompaz.app.ui.screen.docente
 
+import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.librompaz.app.ui.components.BarraSuperior
@@ -49,6 +56,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,34 +72,54 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
     var seleccionados by remember { mutableStateOf(setOf<String>()) }
     var contenido by remember { mutableStateOf("") }
 
-    // Snackbar y Animación
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
-    // Usamos la variable que creó César
     val resultado by viewModel.resultadoSesion.collectAsState()
+    val context = LocalContext.current
 
-    // Estado para el Calendario Nativo (Recurso Nativo G6/D5)
     var mostrarCalendario by remember { mutableStateOf(false) }
 
-    // Reaccionar al resultado del guardado (Éxito o Error)
+    // RECURSO NATIVO 2: VIBRACIÓN (Feedback háptico)
     LaunchedEffect(resultado) {
         if (resultado != null) {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+
             if (resultado?.exito == true) {
-                scope.launch {
-                    snackbarHostState.showSnackbar(resultado?.mensaje ?: "Guardado exitoso")
+                // Vibrar en éxito
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(100)
                 }
-                // Limpiamos el formulario
+                scope.launch { snackbarHostState.showSnackbar(resultado?.mensaje ?: "Guardado exitoso") }
                 bloque = ""
                 seleccionados = emptySet()
                 contenido = ""
+                viewModel.limpiarResultadoSesion()
+            } else {
+                // Vibrar en error
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 100, 100, 100), -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(longArrayOf(0, 100, 100, 100), -1)
+                }
             }
-            // Después de mostrar el mensaje, limpiamos el estado para que no se repita
-            viewModel.limpiarResultadoSesion()
         }
     }
 
-    // Diálogo del Calendario Nativo
+    // Limpiar error al salir de la pantalla
+    DisposableEffect(Unit) {
+        onDispose { viewModel.limpiarResultadoSesion() }
+    }
+
     if (mostrarCalendario) {
         val datePickerState = rememberDatePickerState()
         DatePickerDialog(
@@ -99,7 +127,10 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        // FIX DE CÉSAR: Zona horaria UTC
+                        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                            timeZone = TimeZone.getTimeZone("UTC")
+                        }
                         fecha = formatter.format(Date(millis))
                     }
                     mostrarCalendario = false
@@ -118,15 +149,10 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                // CAMPO DE FECHA CON RECURSO NATIVO
                 OutlinedTextField(
                     value = fecha,
                     onValueChange = { fecha = it },
@@ -172,7 +198,6 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Animación de Errores (Criterio G7)
             AnimatedVisibility(
                 visible = resultado != null && resultado?.exito == false,
                 enter = fadeIn(),
@@ -180,7 +205,7 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
             ) {
                 Text(
                     text = resultado?.mensaje ?: "",
-                    color = MaterialTheme.colorScheme.error, // Rojo para errores
+                    color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
@@ -190,12 +215,7 @@ fun RegistroClaseScreen(navController: NavHostController, viewModel: LibroMpazVi
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     viewModel.guardarSesionEnRoom(
-                        cursoId.orEmpty(),
-                        asignaturaId.orEmpty(),
-                        fecha,
-                        bloque.trim(),
-                        seleccionados.toList(),
-                        contenido.trim()
+                        cursoId.orEmpty(), asignaturaId.orEmpty(), fecha, bloque.trim(), seleccionados.toList(), contenido.trim()
                     )
                 }
             ) { Text("Guardar clase") }
