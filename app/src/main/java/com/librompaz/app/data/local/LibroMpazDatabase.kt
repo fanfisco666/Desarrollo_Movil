@@ -16,21 +16,21 @@ import com.librompaz.app.model.Perfil
 // =====================================================================================
 
 @Database(
-    entities = [SesionEntity::class, SesionOaEntity::class],
-    version = 1,
+    entities = [SesionEntity::class, SesionOaEntity::class, AuditoriaEntity::class],
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(ConvertidoresRoom::class)
 abstract class LibroMpazDatabase : RoomDatabase() {
 
     abstract fun sesionDao(): SesionDao
+    abstract fun auditoriaDao(): AuditoriaDao
 
     /**
      * RN-02: deja auditoría automática e inalterable en la MISMA transacción de Room que
      * guarda la sesión (el DAO ya corre dentro de @Transaction, así que ambas escrituras
-     * comparten transacción y revierten juntas si algo falla). La tabla `auditoria` se
-     * escribe con SQL directo mientras el equipo crea su propia @Entity: así se cumple la
-     * regla sin duplicar todavía el esquema de auditoría.
+     * comparten transacción y revierten juntas si algo falla). La tabla `auditoria` es una
+     * @Entity propia (AuditoriaEntity) y su DAO solo inserta y consulta.
      */
     suspend fun guardarSesionConAuditoria(
         sesion: SesionEntity,
@@ -42,30 +42,14 @@ abstract class LibroMpazDatabase : RoomDatabase() {
     ) {
         withTransaction {
             sesionDao().insertarConOas(sesion, oaIds)
-            openHelper.writableDatabase.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS auditoria (
-                    id TEXT PRIMARY KEY NOT NULL,
-                    usuario TEXT NOT NULL,
-                    perfil TEXT NOT NULL,
-                    accion TEXT NOT NULL,
-                    detalle TEXT NOT NULL,
-                    fechaHora TEXT NOT NULL
-                );
-                """.trimIndent()
-            )
-            openHelper.writableDatabase.execSQL(
-                """
-                INSERT INTO auditoria (id, usuario, perfil, accion, detalle, fechaHora)
-                VALUES (?, ?, ?, ?, ?, ?);
-                """.trimIndent(),
-                arrayOf(
-                    "AU${System.currentTimeMillis()}",
-                    usuario,
-                    perfil.name,
-                    "CREAR",
-                    detalle,
-                    fechaHora,
+            auditoriaDao().insertar(
+                AuditoriaEntity(
+                    id = "AU${System.currentTimeMillis()}",
+                    usuario = usuario,
+                    perfil = perfil.name,
+                    accion = "CREAR",
+                    detalle = detalle,
+                    fechaHora = fechaHora,
                 )
             )
         }

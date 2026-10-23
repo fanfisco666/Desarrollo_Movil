@@ -1,6 +1,10 @@
 package com.librompaz.app.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.librompaz.app.data.local.LibroMpazDatabase
+import com.librompaz.app.data.repository.SesionRepository
 import com.librompaz.app.data.MockData
 import com.librompaz.app.model.Anotacion
 import com.librompaz.app.model.Asignatura
@@ -19,10 +23,11 @@ import com.librompaz.app.model.TipoAnotacion
 import com.librompaz.app.model.Usuario
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  *  - el login siempre rechaza (usar "Modo desarrollo" en la pantalla de login),
@@ -34,7 +39,18 @@ import java.util.Locale
  * Regla de negocio transversal: TODA creación o modificación debe dejar un RegistroAuditoria
  * (usuario, fecha y hora) automático e inalterable. Implementarla en cada función que guarde.*/
 
-class LibroMpazViewModel : ViewModel() {
+/** Resultado de guardar una sesión. `id` único: cada intento se notifica aunque el texto se repita. */
+data class ResultadoSesion(val mensaje: String, val exito: Boolean, val id: Long = System.nanoTime())
+
+class LibroMpazViewModel(application: Application) : AndroidViewModel(application) {
+
+    // Capa de datos (RF-06): ViewModel -> Repository -> DAO -> Room (SQLite).
+    private val repositorioSesiones = SesionRepository(LibroMpazDatabase.obtener(application))
+
+    init {
+        // Primera ejecución: carga la clase de ejemplo S1 en Room (después los datos ya persisten).
+        viewModelScope.launch { repositorioSesiones.sembrarSiVacia(MockData.sesiones) }
+    }
 
     // =====================================================================
     // Módulo "Autenticación y alcance por rol"
@@ -145,15 +161,31 @@ class LibroMpazViewModel : ViewModel() {
     // Módulo "Cobertura curricular"
     // =====================================================================
 
-    private val _sesiones = MutableStateFlow(MockData.sesiones)
-    val sesiones: StateFlow<List<SesionClase>> = _sesiones.asStateFlow()
+    /** Fuente de verdad: Room. Cualquier cambio en la tabla re-emite la lista a las pantallas. */
+    val sesiones: StateFlow<List<SesionClase>> = repositorioSesiones.observarSesiones()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _resultadoSesion = MutableStateFlow<ResultadoSesion?>(null)
+    val resultadoSesion: StateFlow<ResultadoSesion?> = _resultadoSesion.asStateFlow()
+
+    /** Mensaje simple (texto) para pantallas que aún no usan [resultadoSesion]. */
     private val _errorSesion = MutableStateFlow<String?>(null)
     val errorSesion: StateFlow<String?> = _errorSesion.asStateFlow()
 
-    fun sesionesDe(cursoId: String?, asignaturaId: String?): List<SesionClase> =
-        _sesiones.value.filter { it.cursoId == cursoId && it.asignaturaId == asignaturaId }
+    fun limpiarResultadoSesion() {
+        _resultadoSesion.value = null
+        _errorSesion.value = null
+    }
 
+    fun sesionesDe(cursoId: String?, asignaturaId: String?): List<SesionClase> =
+        sesiones.value.filter { it.cursoId == cursoId && it.asignaturaId == asignaturaId }
+
+    /**
+     * RF-06: guarda una sesión con sus OA y contenidos en Room.
+     * 1) Valida en el ViewModel (perfil, carga propia, fecha, bloque, OA, contenido).
+     * 2) El Repository revisa duplicados y guarda sesión + OA + auditoría en UNA transacción (RN-02).
+     * El resultado (éxito o error) sale por [resultadoSesion].
+     */
     fun guardarSesionEnRoom(
         cursoId: String,
         asignaturaId: String,
@@ -162,85 +194,42 @@ class LibroMpazViewModel : ViewModel() {
         oaIds: List<String>,
         contenido: String
     ) {
-        val error = guardarSesion(cursoId, asignaturaId, fecha, bloque, oaIds, contenido)
+        val error = validarSesion(cursoId, asignaturaId, fecha, bloque, oaIds, contenido)
         if (error != null) {
+            _resultadoSesion.value = ResultadoSesion(error, exito = false)
             _errorSesion.value = error
-        } else {
-            _errorSesion.value = "¡Guardado con éxito en la base de datos!"
+            return
         }
-    }
-
-    /**
-     * RF-06: guarda una sesión con sus OA y contenidos.
-     * Devuelve null si se guardó, o el mensaje de error para mostrar en pantalla.
-     * Validaciones: sesión activa (RF-02), perfil Docente y carga propia (RN-03), fecha válida y
-     * no futura, bloque y contenido obligatorios, al menos un OA, OA de la asignatura y sin
-     * duplicar curso + asignatura + fecha + bloque. Al guardar deja auditoría (RN-02).
-     */
-    fun guardarSesion(cursoId: String, asignaturaId: String, fecha: String, bloque: String, oaIds: List<String>, contenido: String): String? {
-        val usuario = _usuarioActivo.value ?: return "Debes iniciar sesión."
-        if (usuario.perfil != Perfil.DOCENTE) return "Tu perfil no puede registrar clases."
-        if (!tieneCarga(usuario, cursoId, asignaturaId)) return "No tienes asignado este curso o asignatura."
-
-        validarFecha(fecha)?.let { return it }
-        if (bloque.isBlank()) return "El bloque es obligatorio."
-        if (oaIds.isEmpty()) return "Marca al menos un OA."
-        if (contenido.isBlank()) return "Escribe los contenidos abordados."
-
-        val oasValidos = objetivosDe(asignaturaId).map { it.id }.toSet()
-        if (!oasValidos.containsAll(oaIds)) return "Hay OA que no pertenecen a esta asignatura."
-
-        val repetida = _sesiones.value.any {
-            it.cursoId == cursoId && it.asignaturaId == asignaturaId &&
-                it.fecha == fecha && it.bloque.equals(bloque, ignoreCase = true)
-        }
-        if (repetida) return "Ya existe una clase registrada para esa fecha y bloque."
-
-        val nueva = SesionClase(
-            id = "S${System.currentTimeMillis()}",
-            cursoId = cursoId,
-            asignaturaId = asignaturaId,
-            fecha = fecha,
-            bloque = bloque,
-            oaIds = oaIds.distinct(),
-            contenido = contenido,
-            registradoPor = usuario.nombre,
-            fechaHoraRegistro = ahora()
-        )
-        _sesiones.value = _sesiones.value + nueva
-        registrarAuditoria(
-            "CREAR",
-            "Sesión de clase ${cursoPorId(cursoId)?.nombre}, ${asignaturaPorId(asignaturaId)?.nombre}, $fecha $bloque"
-        )
-        return null
-    }
-
-    // ---------- Apoyo (RN-02, RN-03): compartido por todas las funciones que guardan ----------
-
-    private fun ahora(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
-
-    /** RN-03: el docente solo opera sobre sus cargas. */
-    private fun tieneCarga(usuario: Usuario, cursoId: String, asignaturaId: String? = null): Boolean =
-        MockData.cargas.any {
-            it.docenteId == usuario.id && it.cursoId == cursoId &&
-                (asignaturaId == null || it.asignaturaId == asignaturaId)
-        }
-
-    /** Fecha AAAA-MM-DD válida y no futura. Devuelve el error o null. (Sin java.time: minSdk 24.) */
-    private fun validarFecha(fecha: String): String? {
-        if (!Regex("""\d{4}-\d{2}-\d{2}""").matches(fecha)) return "La fecha debe tener formato AAAA-MM-DD."
-        val formato = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply { isLenient = false }
-        if (runCatching { formato.parse(fecha) }.getOrNull() == null) return "La fecha no es válida."
-        if (fecha > formato.format(Date())) return "No se permiten fechas futuras."
-        return null
-    }
-
-    /** RN-02: usuario, perfil, fecha y hora salen del sistema, nunca del usuario. */
-    private fun registrarAuditoria(accion: String, detalle: String) {
         val usuario = _usuarioActivo.value ?: return
-        val registro = RegistroAuditoria("AU${System.currentTimeMillis()}", usuario.nombre, usuario.perfil, accion, detalle, ahora())
-        _auditoria.value = listOf(registro) + _auditoria.value
+        viewModelScope.launch {
+            val errorRepo = repositorioSesiones.guardar(
+                cursoId = cursoId,
+                asignaturaId = asignaturaId,
+                fecha = fecha,
+                bloque = bloque,
+                oaIds = oaIds,
+                contenido = contenido,
+                registradoPor = usuario.nombre,
+                perfil = usuario.perfil,
+                nombreCurso = cursoPorId(cursoId)?.nombre ?: cursoId,
+                nombreAsignatura = asignaturaPorId(asignaturaId)?.nombre ?: asignaturaId
+            )
+            if (errorRepo == null) {
+                _resultadoSesion.value = ResultadoSesion("Clase guardada correctamente.", exito = true)
+                _errorSesion.value = "¡Guardado con éxito en la base de datos!"
+            } else {
+                _resultadoSesion.value = ResultadoSesion(errorRepo, exito = false)
+                _errorSesion.value = errorRepo
+            }
+        }
     }
+
+    /** Reglas de RF-06 en una clase pura (ValidadorSesion), para poder probarlas con JUnit. */
+    private val validadorSesion = ValidadorSesion(MockData.cargas, MockData.objetivos)
+
+    /** Validaciones de RF-06 (sin tocar la base de datos). Devuelve el error o null si es válida. */
+    fun validarSesion(cursoId: String, asignaturaId: String, fecha: String, bloque: String, oaIds: List<String>, contenido: String): String? =
+        validadorSesion.validar(_usuarioActivo.value, cursoId, asignaturaId, fecha, bloque, oaIds, contenido)
 
     /**
      * TODO(equipo): ids de los OA ya trabajados en el curso y asignatura (según las sesiones
@@ -322,8 +311,10 @@ class LibroMpazViewModel : ViewModel() {
     // Módulo "Panel administrativo" (Dirección) y auditoría
     // =====================================================================
 
-    private val _auditoria = MutableStateFlow(MockData.auditoria)
-    val auditoria: StateFlow<List<RegistroAuditoria>> = _auditoria.asStateFlow()
+    /** Auditoría real (Room, más reciente primero) seguida de los registros de ejemplo. */
+    val auditoria: StateFlow<List<RegistroAuditoria>> = repositorioSesiones.observarAuditoria()
+        .map { it + MockData.auditoria }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MockData.auditoria)
 
     /**
      * TODO(equipo): calcular las métricas consolidadas de cada curso (asistencia, sesiones,

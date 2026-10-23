@@ -3,6 +3,7 @@ package com.librompaz.app.data.repository
 import com.librompaz.app.data.local.LibroMpazDatabase
 import com.librompaz.app.data.local.SesionConOas
 import com.librompaz.app.data.local.SesionEntity
+import com.librompaz.app.data.local.AuditoriaEntity
 import com.librompaz.app.model.Perfil
 import com.librompaz.app.model.RegistroAuditoria
 import com.librompaz.app.model.SesionClase
@@ -44,6 +45,22 @@ class SesionRepository(
     /** Sesiones de un curso y asignatura concretos (pantalla del docente). */
     fun observarSesionesDe(cursoId: String, asignaturaId: String): Flow<List<SesionClase>> =
         dao.observarPorCursoYAsignatura(cursoId, asignaturaId).map { filas -> filas.map { it.aModelo() } }
+
+    /** Auditoría guardada en Room, más reciente primero (la consume Dirección). */
+    fun observarAuditoria(): Flow<List<RegistroAuditoria>> =
+        db.auditoriaDao().observarTodas().map { filas -> filas.map { it.aModelo() } }
+
+    /** Carga las sesiones de ejemplo solo si la tabla está vacía (primera ejecución). */
+    suspend fun sembrarSiVacia(ejemplos: List<SesionClase>) = withContext(ioDispatcher) {
+        if (dao.contarTodas() == 0) {
+            ejemplos.forEach { s ->
+                dao.insertarConOas(
+                    SesionEntity(s.id, s.cursoId, s.asignaturaId, s.fecha, s.bloque, s.contenido, s.registradoPor, s.fechaHoraRegistro),
+                    s.oaIds
+                )
+            }
+        }
+    }
 
     /** OA ya trabajados en un curso+asignatura: alimenta la cobertura curricular de UTP. */
     suspend fun oaIdsTrabajados(cursoId: String, asignaturaId: String): Set<String> =
@@ -125,6 +142,9 @@ class SesionRepository(
         registradoPor = sesion.registradoPor,
         fechaHoraRegistro = sesion.fechaHoraRegistro,
     )
+
+    private fun AuditoriaEntity.aModelo(): RegistroAuditoria =
+        RegistroAuditoria(id, usuario, Perfil.valueOf(perfil), accion, detalle, fechaHora)
 
     /** Formato "yyyy-MM-dd HH:mm", idéntico al que usa el ViewModel hoy (sin java.time: minSdk 24). */
     private fun ahora(): String =

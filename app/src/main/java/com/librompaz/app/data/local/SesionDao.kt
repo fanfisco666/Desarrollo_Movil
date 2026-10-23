@@ -45,6 +45,10 @@ interface SesionDao {
     )
     suspend fun oaIdsTrabajados(cursoId: String, asignaturaId: String): List<String>
 
+    /** Total de sesiones (para cargar los datos de ejemplo solo la primera vez). */
+    @Query("SELECT COUNT(*) FROM sesiones")
+    suspend fun contarTodas(): Int
+
     /** Métrica de Dirección: cuántas sesiones tiene registradas un curso. */
     @Query("SELECT COUNT(*) FROM sesiones WHERE cursoId = :cursoId")
     suspend fun contarPorCurso(cursoId: String): Int
