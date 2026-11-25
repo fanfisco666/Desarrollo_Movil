@@ -130,14 +130,20 @@ data class ServidorUiState(
  *
  * Es AndroidViewModel porque necesita un Context para abrir la base de datos.
  */
-class LibroMpazViewModel(application: Application) : AndroidViewModel(application) {
+class LibroMpazViewModel @JvmOverloads constructor(
+    application: Application,
+    modoInyectado: PreferenciaModo? = null,
+    repositorioLocalInyectado: LibroMpazDatos? = null,
+    repositorioServidorInyectado: LibroMpazDatos? = null
+) : AndroidViewModel(application) {
 
     /**
      * Preferencia persistente "modo local" (el interruptor de la Experiencia 3 en tiempo de ejecución).
      * BuildConfig.USAR_API solo define el VALOR INICIAL (false = modo local, true = modo servidor);
      * después manda lo que se elija en el cuadro "Servidor". Se lee en cada operación (ver SelectorFuente).
+     * Los parámetros "...Inyectado" permiten pasar fakes en las pruebas; en la app quedan en null.
      */
-    private val modo: PreferenciaModo = PreferenciaModoPersistente(
+    private val modo: PreferenciaModo = modoInyectado ?: PreferenciaModoPersistente(
         almacen = AlmacenModoPreferencias(application),
         valorInicial = modoLocalInicial(BuildConfig.USAR_API)
     )
@@ -148,11 +154,10 @@ class LibroMpazViewModel(application: Application) : AndroidViewModel(applicatio
     private val apiClient by lazy { ApiClient(tokenSesion) }
 
     // MODO LOCAL: solo Room, su propia base (independiente de la copia del servidor), sin red.
-    private val repositorioLocal: LibroMpazDatos =
-        LibroMpazRepository(AppDatabase.getInstance(application, AppDatabase.NOMBRE_LOCAL))
+    private val repositorioLocal: LibroMpazDatos = repositorioLocalInyectado
+        ?: LibroMpazRepository(AppDatabase.getInstance(application, AppDatabase.NOMBRE_LOCAL))
 
-    // MODO SERVIDOR: la API es la fuente de verdad y Room (otra base) la caché. Construirlo no abre ninguna conexión.
-    private val repositorioServidor: LibroMpazDatos = LibroMpazApiRepository(
+    private val repositorioServidor: LibroMpazDatos = repositorioServidorInyectado ?: LibroMpazApiRepository(
         cache = CacheRoom(AppDatabase.getInstance(application)),
         remota = FuenteRemota { apiClient.servicio(servidor.urlActual()) },
         sesion = tokenSesion
