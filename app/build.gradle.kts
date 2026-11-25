@@ -6,6 +6,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // KSP: genera el código de Room (DAO, base de datos) al compilar.
     alias(libs.plugins.ksp)
+    id("jacoco")
+}
+
+jacoco {
+    toolVersion = "0.8.12"
 }
 
 // ---------------------------------------------------------------------------------------
@@ -80,6 +85,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            enableUnitTestCoverage = true
+        }
         release {
             isMinifyEnabled = false
             if (firmaCompleta) {
@@ -150,4 +158,88 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+// ---------------------------------------------------------------------------------------
+// Configuración de JaCoCo para reporte y verificación de cobertura de la lógica
+// ---------------------------------------------------------------------------------------
+val alcanceLogicaExclusiones = listOf(
+    "**/R.class",
+    "**/R$*.class",
+    "**/BuildConfig.*",
+    "**/Manifest*.*",
+    "**/*Test*.*",
+    "android/**/*",
+    "**/ui/**",
+    "**/theme/**",
+    "**/navigation/**",
+    "**/util/**",
+    "**/remote/**",
+    "**/MockData*.*",
+    "**/*_Impl*.*",
+    "**/*Dao*.*",
+    "**/AppDatabase*.*",
+    "**/MainActivity*.*"
+)
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+        include(
+            "com/librompaz/app/domain/**",
+            "com/librompaz/app/data/repository/**",
+            "com/librompaz/app/data/local/**"
+        )
+        exclude(alcanceLogicaExclusiones)
+    }
+    val mainSrc = "${project.projectDir}/src/main/java"
+
+    sourceDirectories.setFrom(files(mainSrc))
+    classDirectories.setFrom(files(debugTree))
+    executionData.setFrom(
+        fileTree(layout.buildDirectory).include(
+            "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
+            "jacoco/testDebugUnitTest.exec"
+        )
+    )
+}
+
+tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+    dependsOn("jacocoTestReport")
+
+    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+        include(
+            "com/librompaz/app/domain/**",
+            "com/librompaz/app/data/repository/**",
+            "com/librompaz/app/data/local/**"
+        )
+        exclude(alcanceLogicaExclusiones)
+    }
+    val mainSrc = "${project.projectDir}/src/main/java"
+
+    sourceDirectories.setFrom(files(mainSrc))
+    classDirectories.setFrom(files(debugTree))
+    executionData.setFrom(
+        fileTree(layout.buildDirectory).include(
+            "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
+            "jacoco/testDebugUnitTest.exec"
+        )
+    )
+
+    violationRules {
+        rule {
+            element = "BUNDLE"
+            limit {
+                counter = "INSTRUCTION"
+                value = "COVEREDRATIO"
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+    }
 }
