@@ -73,6 +73,8 @@ android {
                 storePassword = claveAlmacen
                 keyAlias = aliasLlave
                 keyPassword = claveLlave
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
