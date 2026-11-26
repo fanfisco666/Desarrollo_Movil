@@ -194,7 +194,8 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         include(
             "com/librompaz/app/domain/**",
             "com/librompaz/app/data/repository/**",
-            "com/librompaz/app/data/local/**"
+            "com/librompaz/app/data/local/**",
+            "com/librompaz/app/viewmodel/**"
         )
         exclude(alcanceLogicaExclusiones)
     }
@@ -217,7 +218,8 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
         include(
             "com/librompaz/app/domain/**",
             "com/librompaz/app/data/repository/**",
-            "com/librompaz/app/data/local/**"
+            "com/librompaz/app/data/local/**",
+            "com/librompaz/app/viewmodel/**"
         )
         exclude(alcanceLogicaExclusiones)
     }
