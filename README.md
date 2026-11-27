@@ -187,7 +187,7 @@ Ya vienen resueltos: `Dtos.kt` y `ApiService.kt` (el contrato de la API: no se m
 
 En Linux/macOS se usa `./gradlew` en lugar de `.\gradlew.bat`. Las pruebas JVM usan JUnit 4, MockK, MockWebServer y `kotlinx-coroutines-test`.
 
-- Total en `app/src/test`: **221 `@Test`, 51 omitidas y 170 activas, con 0 fallos**. Las 51 omitidas vienen de 5 clases con `@Ignore` a nivel de clase, a la espera de la integración con la API (que quedó pendiente por falta de ambiente backend): `ApiServiceMockWebServerTest` (15), `ConfigServidorTest` (6), `ErroresApiTest` (11), `MapeadoresTest` (7) y `LibroMpazApiRepositoryTest` (12).
+- Total en `app/src/test`: **229 `@Test`, 51 omitidas y 178 activas, con 0 fallos**. Las 51 omitidas vienen de 5 clases con `@Ignore` a nivel de clase, a la espera de la integración con la API (que quedó pendiente por falta de ambiente backend): `ApiServiceMockWebServerTest` (15), `ConfigServidorTest` (6), `ErroresApiTest` (11), `MapeadoresTest` (7) y `LibroMpazApiRepositoryTest` (12).
 - ViewModel: `LibroMpazViewModelTest.kt` (21 casos de Matías) y `LibroMpazViewModelLocalTest.kt` (27 casos de Katerine: login con fallback sin red, RBAC, notas, lote atómico, `sinNota` y doble guardado).
 - JaCoCo genera `app/build/reports/jacoco/jacocoTestReport/html/index.html` y `app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml`. La verificación exige al menos **80% de instrucciones** sobre `domain/`, `data/repository/`, `data/local/` y `viewmodel/`.
 - `connectedDebugAndroidTest` sigue disponible para pruebas de interfaz con emulador o dispositivo; no es necesario para la evidencia JVM de esta entrega.
@@ -209,6 +209,7 @@ Verificar la firma con `apksigner verify --verbose --print-certs --min-sdk-versi
 ## Capturas
 
 - [Verificación de la firma V1/V2 del APK](docs/img/verificacion-firma.png).
+- [Evidencia de la llave de firma (`llave/librompaz.jks`, alias `librompaz`)](docs/evidencia-llave.txt).
 
 Las capturas de las pantallas de la app se toman en el dispositivo o emulador al momento de la defensa; este repositorio no incluye imágenes inventadas de pantallas que no se ejecutaron.
 

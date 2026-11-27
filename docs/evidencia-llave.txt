@@ -1,0 +1,19 @@
+Evidence of the APK signing key (no passwords included).
+Command: keytool -list -v -keystore llave/librompaz.jks -alias librompaz
+(the password was passed through a variable and is not shown)
+
+Alias name: librompaz
+Creation date: Nov 24, 2026
+Entry type: PrivateKeyEntry
+Certificate chain length: 1
+Certificate[1]:
+Owner: C=CL, CN=LibroMpaz
+Issuer: C=CL, CN=LibroMpaz
+Serial number: 1
+Valid from: Tue Nov 24 23:47:51 CLST 2026 until: Sat Nov 18 23:47:51 CLST 2051
+Certificate fingerprints:
+	 SHA1: 63:F6:C7:E4:7E:39:D3:F1:E7:04:7D:3C:CE:CC:81:47:90:F7:06:62
+	 SHA256: 37:2F:42:C6:25:7E:57:3F:63:A8:87:5A:2F:FD:4B:AD:C2:2D:4C:A5:E0:AD:D6:46:43:B1:51:D2:32:49:60:2D
+Signature algorithm name: SHA256withRSA
+Subject Public Key Algorithm: 2048-bit RSA key
+Version: 1
