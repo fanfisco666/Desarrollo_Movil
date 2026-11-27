@@ -1,5 +1,11 @@
 # LibroMpaz — Libro de clases digital (prototipo académico)
 
+## Integrantes del equipo
+
+- **César Salvo** (Dueño del repo) — Configuración de Base 3, firma del APK, keystore `.jks` y entrega en AVA.
+- **Matías Pérez** — Configuración de JaCoCo, alcance de lógica, pruebas del repositorio local, asistencia, sesiones, calificaciones y hoja de vida.
+- **Katerine** — Pruebas del ViewModel y de dominio, recursos nativos (Vibración y DatePicker), y documentación README.
+
 Aplicación Android (Kotlin, Jetpack Compose Material 3, MVVM, Room) que simula el libro de clases digital de un colegio básico. Es un prototipo de uso interno: todos los datos son ficticios y el flujo es aislado: no se envía ni se exporta información fuera del dispositivo o, en modo API, fuera de la red local del aula (RN-01, RNF-07).
 
 > **Estado de la entrega EV3:** el profesor dejó la **API REST pendiente por falta de ambiente backend**. Por eso el modo evaluado es el **modo local con Room**, que la rúbrica acepta como equivalente. Los endpoints y el modo servidor se documentan abajo como contrato previsto, no como una integración funcionando en esta entrega.
