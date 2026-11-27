@@ -204,7 +204,7 @@ La entrega incluye la llave exclusiva de esta actividad (`llave/librompaz.jks`),
 2. La configuración ya está en `keystore.properties`: `storeFile` (ruta absoluta), `storePassword`, `keyAlias` y `keyPassword`. En otro equipo se parte de `keystore.properties.example` y se completan esos valores, o se usan `LIBROMPAZ_STORE_FILE`, `LIBROMPAZ_STORE_PASSWORD`, `LIBROMPAZ_KEY_ALIAS` y `LIBROMPAZ_KEY_PASSWORD` en `~/.gradle/gradle.properties` o como variables de entorno.
 3. Ejecutar `.\gradlew.bat assembleRelease`. El APK queda en `app/build/outputs/apk/release/`; la copia entregada está en `apk/app-release.apk`.
 
-Verificar la firma con `apksigner verify --verbose --print-certs apk/app-release.apk` (debe decir que verificó V1 y V2). `versionCode` y `versionName` están en `app/build.gradle.kts`; `.gitignore` excluye `local.properties`, `build/`, `.gradle/`, `.idea/` y `.kotlin/`. La llave, el APK y su configuración se incluyen porque la pauta lo pide; no reutilices esa llave en otra app ni publiques sus valores.
+Verificar la firma con `apksigner verify --verbose --print-certs --min-sdk-version 22 apk/app-release.apk` (debe decir que verificó V1 y V2; se baja el `minSdk` de la verificación porque con `minSdk = 24` `apksigner` solo comprueba el esquema V2 y marca V1 como `false`, aunque el APK esté firmado con ambos). `versionCode` y `versionName` están en `app/build.gradle.kts`; `.gitignore` excluye `local.properties`, `build/`, `.gradle/`, `.idea/` y `.kotlin/`. La llave, el APK y su configuración se incluyen porque la pauta lo pide; no reutilices esa llave en otra app ni publiques sus valores.
 
 ## Capturas
 
